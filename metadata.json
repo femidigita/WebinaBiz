@@ -1,5 +1,5 @@
 {
-  "name": "WebinarBiz App",
+  "name": "SwiftDigital Meet",
   "description": "A responsive webinar platform clone featuring real-time screen sharing, video conferencing capabilities, and an integrated Gemini-powered AI meeting assistant.",
   "requestFramePermissions": [
     "camera",

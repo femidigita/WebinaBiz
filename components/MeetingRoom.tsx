@@ -30,7 +30,12 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(initialStream);
   const [processedStream, setProcessedStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
-  const [activeStream, setActiveStream] = useState<MediaStream | null>(null); // The stream currently being sent
+  
+  // Initialize activeStream immediately if possible to avoid delays
+  const [activeStream, setActiveStream] = useState<MediaStream | null>(initialStream);
+
+  // Refs for State (to avoid stale closures in PeerJS callbacks)
+  const activeStreamRef = useRef<MediaStream | null>(initialStream);
 
   // State
   const [isVideoEnabled, setIsVideoEnabled] = useState(initialVideo);
@@ -41,43 +46,49 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
   const [myPeerId, setMyPeerId] = useState<string>('');
   const [participants, setParticipants] = useState<Participant[]>([]);
   
+  // Recording State
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  
   // Refs
   const peerRef = useRef<Peer | null>(null);
   const activeCallsRef = useRef<any[]>([]);
   const videoProcessRef = useRef<HTMLVideoElement>(document.createElement('video'));
   const canvasProcessRef = useRef<HTMLCanvasElement>(document.createElement('canvas'));
+  const hasJoinedRef = useRef(false);
+  
+  // Name mapping ref to solve the "Receiver sees their own name" issue
+  const peerNamesRef = useRef<Record<string, string>>({});
 
   // --- 1. Stream Initialization & Management ---
   useEffect(() => {
     const initStream = async () => {
-        let stream = webcamStream;
-        if (!stream) {
+        if (!initialStream) {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({
+                const stream = await navigator.mediaDevices.getUserMedia({
                     video: { width: { ideal: 1280 }, height: { ideal: 720 } },
                     audio: true
                 });
-                // Apply initial settings
-                stream.getVideoTracks().forEach(t => t.enabled = initialVideo);
-                stream.getAudioTracks().forEach(t => t.enabled = initialAudio);
                 setWebcamStream(stream);
+                // If we didn't have an initial stream, this is our first active stream
+                if (!activeStreamRef.current) {
+                    setActiveStream(stream);
+                    activeStreamRef.current = stream;
+                }
             } catch (e) {
                 console.error("Failed to get user media", e);
-                return;
             }
-        } else {
-            // Ensure settings are applied to passed stream
-            stream.getVideoTracks().forEach(t => t.enabled = initialVideo);
-            stream.getAudioTracks().forEach(t => t.enabled = initialAudio);
         }
     };
     initStream();
-  }, []);
+  }, []); // Run once on mount
 
   // --- 2. Background Processing Loop ---
   useEffect(() => {
       if (!webcamStream || !isVideoEnabled) {
           backgroundService.stop();
+          setProcessedStream(null);
           return;
       }
 
@@ -88,8 +99,11 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
           } else {
               // Setup hidden video element for processing source
               const vid = videoProcessRef.current;
-              vid.srcObject = webcamStream;
-              await vid.play().catch(() => {});
+              // Only update source if different
+              if (vid.srcObject !== webcamStream) {
+                vid.srcObject = webcamStream;
+                await vid.play().catch(() => {});
+              }
 
               backgroundService.setMode(backgroundMode);
               backgroundService.processStream(vid, canvasProcessRef.current);
@@ -109,33 +123,63 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
 
   // --- 3. Determine Active Stream ---
   useEffect(() => {
+      let nextStream: MediaStream | null = null;
+
       if (screenStream) {
-          setActiveStream(screenStream);
+          nextStream = screenStream;
       } else if (backgroundMode !== 'NONE' && processedStream) {
-          setActiveStream(processedStream);
+          nextStream = processedStream;
       } else {
-          setActiveStream(webcamStream);
+          nextStream = webcamStream;
+      }
+
+      // Only update if actually different to prevent unnecessary re-renders/track replacements
+      if (nextStream !== activeStreamRef.current) {
+          setActiveStream(nextStream);
+          activeStreamRef.current = nextStream; // Sync Ref
       }
   }, [screenStream, processedStream, webcamStream, backgroundMode]);
 
-  // --- 4. PeerJS Integration ---
+  // --- 4. PeerJS Initialization (Run Once) ---
   useEffect(() => {
-    // Only init peer when we have an active stream to answer with
-    if (!activeStream || peerRef.current) return;
-
+    // Generate ID or use random
     const newPeerId = Math.random().toString(36).substr(2, 9);
-    const peer = new Peer(newPeerId);
+    
+    console.log("Initializing PeerJS with ID:", newPeerId);
+    
+    const peer = new Peer(newPeerId, {
+        debug: 1,
+    });
 
     peer.on('open', (id) => {
+        console.log("PeerJS Connected. My ID:", id);
         setMyPeerId(id);
-        if (targetMeetingId) {
-            connectToHost(targetMeetingId, activeStream);
+    });
+
+    // Handle Incoming Data Connections (For Name Exchange)
+    peer.on('connection', (conn) => {
+        setupDataConnection(conn);
+    });
+
+    // Handle Incoming Media Calls
+    peer.on('call', (call) => {
+        console.log("Incoming call from:", call.peer);
+        // Answer with the current active stream
+        const currentStream = activeStreamRef.current;
+        if (currentStream) {
+            call.answer(currentStream);
+            handleCallStream(call);
+        } else {
+            console.warn("Answering call without stream (not ready)");
+            call.answer(); 
         }
     });
 
-    peer.on('call', (call) => {
-        call.answer(activeStream);
-        handleCallStream(call);
+    peer.on('error', (err) => {
+        console.error("PeerJS Error:", err);
+        if (err.type === 'peer-unavailable') {
+            alert("The meeting ID you are trying to join does not exist or the host is offline.");
+        }
     });
 
     peerRef.current = peer;
@@ -143,32 +187,74 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
     return () => {
         peer.destroy();
     };
-  }, [activeStream]); // Start peer once we have a stream
+  }, []); 
 
-  // --- 5. Handle Track Replacement when Active Stream Changes ---
+  // --- 5. Join Meeting Logic (Wait for Peer + Stream) ---
   useEffect(() => {
-      if (!activeStream) return;
+      // If we are supposed to join a meeting, we have our ID, and we have a stream, and we haven't joined yet
+      if (targetMeetingId && myPeerId && activeStreamRef.current && !hasJoinedRef.current) {
+          console.log("Joining Meeting:", targetMeetingId);
+          connectToHost(targetMeetingId, activeStreamRef.current);
+          hasJoinedRef.current = true;
+      }
+  }, [targetMeetingId, myPeerId, activeStream]);
 
-      const videoTrack = activeStream.getVideoTracks()[0];
-      const audioTrack = activeStream.getAudioTracks()[0];
+  // --- 6. Handle Track Replacement when Active Stream Changes ---
+  useEffect(() => {
+      const currentStream = activeStream;
+      if (!currentStream) return;
+
+      const videoTrack = currentStream.getVideoTracks()[0];
+      const audioTrack = currentStream.getAudioTracks()[0];
 
       activeCallsRef.current.forEach(call => {
+          if (!call.peerConnection) return;
           const senders = call.peerConnection.getSenders();
           
-          const videoSender = senders.find((s:any) => s.track?.kind === 'video');
-          if (videoSender && videoTrack) {
-              videoSender.replaceTrack(videoTrack);
+          if (videoTrack) {
+            const videoSender = senders.find((s:any) => s.track?.kind === 'video');
+            if (videoSender) {
+                videoSender.replaceTrack(videoTrack).catch((err: any) => console.error("Track replacement failed", err));
+            }
           }
           
-          const audioSender = senders.find((s:any) => s.track?.kind === 'audio');
-          if (audioSender && audioTrack) {
-              audioSender.replaceTrack(audioTrack);
+          if (audioTrack) {
+            const audioSender = senders.find((s:any) => s.track?.kind === 'audio');
+            if (audioSender) {
+                audioSender.replaceTrack(audioTrack).catch((err: any) => console.error("Audio replacement failed", err));
+            }
           }
       });
   }, [activeStream]);
 
+  // --- Helper: Data Connection for Name Exchange ---
+  const setupDataConnection = (conn: any) => {
+      conn.on('open', () => {
+          // Send my name to the peer
+          conn.send({ type: 'identify', name: userName });
+      });
+
+      conn.on('data', (data: any) => {
+          if (data && data.type === 'identify' && data.name) {
+              console.log("Received identity:", data.name, "from", conn.peer);
+              peerNamesRef.current[conn.peer] = data.name;
+              
+              // Update participant if they already exist
+              setParticipants(prev => prev.map(p => 
+                  p.peerId === conn.peer ? { ...p, name: data.name } : p
+              ));
+          }
+      });
+  };
+
   const connectToHost = (hostId: string, stream: MediaStream) => {
     if (!peerRef.current) return;
+    
+    // 1. Establish Data Connection for metadata exchange
+    const conn = peerRef.current.connect(hostId);
+    setupDataConnection(conn);
+
+    // 2. Establish Media Call
     const call = peerRef.current.call(hostId, stream, {
         metadata: { name: userName }
     });
@@ -176,15 +262,28 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
   };
 
   const handleCallStream = (call: any) => {
+    if (activeCallsRef.current.find(c => c.peer === call.peer)) return;
+
     activeCallsRef.current.push(call);
     
     call.on('stream', (remoteStream: MediaStream) => {
+        console.log("Received remote stream from:", call.peer);
+        
         setParticipants(prev => {
             if (prev.find(p => p.peerId === call.peer)) return prev;
+            
+            // Try to resolve name: 
+            // 1. From our DataConnection map (best)
+            // 2. From call metadata (works for host receiving call)
+            // 3. Fallback
+            const resolvedName = peerNamesRef.current[call.peer] 
+                || call.metadata?.name 
+                || `User ${call.peer.substr(0,4)}`;
+
             return [...prev, {
                 id: call.peer,
                 peerId: call.peer,
-                name: call.metadata?.name || `User ${call.peer.substr(0,4)}`,
+                name: resolvedName,
                 isLocal: false,
                 videoEnabled: true,
                 audioEnabled: true,
@@ -194,6 +293,13 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
     });
 
     call.on('close', () => {
+        console.log("Call closed:", call.peer);
+        setParticipants(prev => prev.filter(p => p.peerId !== call.peer));
+        activeCallsRef.current = activeCallsRef.current.filter(c => c !== call);
+    });
+
+    call.on('error', (err: any) => {
+        console.error("Call error:", err);
         setParticipants(prev => prev.filter(p => p.peerId !== call.peer));
         activeCallsRef.current = activeCallsRef.current.filter(c => c !== call);
     });
@@ -225,24 +331,132 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
 
   const toggleScreenShare = async () => {
     if (screenStream) {
+      // Stop screen share
       screenStream.getTracks().forEach(t => t.stop());
       setScreenStream(null);
     } else {
       try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-        setScreenStream(stream);
-        stream.getVideoTracks()[0].onended = () => {
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        
+        // MIXING LOGIC: Combine Screen Video + Mic Audio
+        const videoTrack = displayStream.getVideoTracks()[0];
+        let audioTrack = webcamStream?.getAudioTracks()[0]; 
+
+        const tracks = [videoTrack];
+        if (audioTrack) tracks.push(audioTrack);
+        
+        const mixedStream = new MediaStream(tracks);
+
+        setScreenStream(mixedStream);
+
+        videoTrack.onended = () => {
             setScreenStream(null);
         };
       } catch (e: any) {
         console.error("Error sharing screen", e);
-        if (e.name === 'NotAllowedError' && e.message.includes('disallowed by permissions policy')) {
-             alert("Screen sharing permission is required. Please reload the page and try again.");
-        } else {
-             alert("Could not start screen share. Permission denied or not supported.");
+        if (e.name === 'NotAllowedError') {
+             // User cancelled, ignore
+             return;
         }
+        alert("Screen sharing permission is required.");
       }
     }
+  };
+
+  const toggleRecording = async () => {
+    if (isRecording) {
+      // Stop recording
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+        setIsRecording(false);
+      }
+    } else {
+      // Start recording
+      
+      // Notify user about the upcoming browser prompt
+      alert("To record this meeting, please select 'Entire Screen' or the current 'Tab' in the popup window. Ensure 'Share system audio' is checked to capture sound.");
+
+      try {
+        // We use getDisplayMedia for high quality recording of the meeting content (screen or window)
+        const recordStream = await navigator.mediaDevices.getDisplayMedia({
+            video: { displaySurface: 'browser' },
+            audio: true // Capture system audio
+        });
+
+        // Determine supported mime type
+        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
+             ? 'video/webm;codecs=vp9' 
+             : 'video/webm';
+
+        const mediaRecorder = new MediaRecorder(recordStream, { mimeType });
+        mediaRecorderRef.current = mediaRecorder;
+        recordedChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                recordedChunksRef.current.push(event.data);
+            }
+        };
+
+        mediaRecorder.onstop = () => {
+            const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            document.body.appendChild(a);
+            a.style.display = 'none';
+            a.href = url;
+            a.download = `meeting-recording-${new Date().toISOString()}.webm`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+            
+            // Stop the stream used for recording
+            recordStream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorder.start();
+        setIsRecording(true);
+
+        // Handle case where user stops sharing via browser UI
+        recordStream.getVideoTracks()[0].onended = () => {
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                mediaRecorderRef.current.stop();
+                setIsRecording(false);
+            }
+        };
+
+      } catch (e: any) {
+          if (e.name === 'NotAllowedError') {
+              // User cancelled the prompt - do nothing and don't alert
+              return;
+          }
+          console.error("Error starting recording:", e);
+          alert("Recording cancelled or failed to start.");
+      }
+    }
+  };
+
+  const handleEndCallSafe = () => {
+      // 1. Stop recording if active
+      if (isRecording && mediaRecorderRef.current) {
+          mediaRecorderRef.current.stop();
+      }
+
+      // 2. Explicitly stop ALL local tracks to ensure camera light turns off
+      if (webcamStream) {
+          webcamStream.getTracks().forEach(track => track.stop());
+      }
+      if (screenStream) {
+          screenStream.getTracks().forEach(track => track.stop());
+      }
+      if (processedStream) {
+          processedStream.getTracks().forEach(track => track.stop());
+      }
+
+      // 3. Cleanup background service
+      backgroundService.stop();
+
+      // 4. Call parent handler
+      onEndCall();
   };
 
   const copyId = () => {
@@ -262,17 +476,33 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
   const displayParticipants = [localParticipant, ...participants];
   const activeScreenShare = screenStream ? localParticipant : participants.find(p => p.isScreenSharing);
 
+  // Filter out the local participant (You) from the filmstrip if someone is sharing.
+  // This cleans up the UI for the viewer, removing the distraction of their own face ("another meet").
+  const filmstripParticipants = displayParticipants.filter(p => {
+    // Always hide the person currently on the main stage
+    if (activeScreenShare && p.id === activeScreenShare.id) return false;
+    
+    // If we are watching a screen share (and not the one sharing), hide ourself to focus on the content
+    if (activeScreenShare && !activeScreenShare.isLocal && p.isLocal) return false;
+
+    return true;
+  });
+
   return (
     <div className="flex flex-col h-screen bg-gray-950 text-white overflow-hidden">
       
       {/* Header Info */}
-      <div className="absolute top-4 left-4 z-40 bg-gray-900/80 backdrop-blur border border-gray-700 rounded-lg p-3 shadow-lg flex flex-col gap-1">
+      <div className="absolute top-4 left-4 z-40 bg-gray-900/80 backdrop-blur border border-gray-700 rounded-lg p-3 shadow-lg flex flex-col gap-1 pointer-events-auto">
           <div className="text-xs text-gray-400 font-semibold">MEETING ID</div>
           <div className="flex items-center gap-2">
-            <span className="text-lg font-mono font-bold text-green-400 tracking-wider">{myPeerId || "..."}</span>
-            <button onClick={copyId} className="p-1 hover:bg-gray-700 rounded text-gray-300 transition-colors" title="Copy ID">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-            </button>
+            <span className="text-lg font-mono font-bold text-green-400 tracking-wider select-all">
+                {myPeerId ? myPeerId : <span className="animate-pulse">Connecting...</span>}
+            </span>
+            {myPeerId && (
+                <button onClick={copyId} className="p-1 hover:bg-gray-700 rounded text-gray-300 transition-colors" title="Copy ID">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                </button>
+            )}
           </div>
           {targetMeetingId && (
               <div className="text-xs text-blue-400 mt-1">Joined Room: {targetMeetingId}</div>
@@ -283,7 +513,10 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
       <div className="flex-1 flex overflow-hidden relative">
         
         {/* Video Grid / Stage */}
-        <div className={`flex-1 p-4 overflow-y-auto transition-all duration-300 ${isAiPanelOpen ? 'mr-0' : ''} flex flex-col`}>
+        <div 
+          className={`flex-1 overflow-y-auto transition-all duration-300 ${isAiPanelOpen ? 'mr-0' : ''} flex flex-col 
+          ${activeScreenShare ? 'p-0 sm:p-4' : 'p-4'}`} // Remove padding on mobile during screen share for edge-to-edge
+        >
           
           {participants.length === 0 && !targetMeetingId && (
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center text-gray-500 z-0">
@@ -298,37 +531,31 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
           {activeScreenShare ? (
             // Screen Share Layout
             <div className="h-full flex flex-col gap-4 z-10">
-              <div className="flex-1 bg-black rounded-xl overflow-hidden border border-gray-800 relative shadow-2xl">
+              {/* Main Screen Share Area */}
+              <div className="flex-1 bg-black rounded-none sm:rounded-xl overflow-hidden border-0 sm:border border-gray-800 relative shadow-2xl flex items-center justify-center">
                  <VideoTile 
                    participant={activeScreenShare} 
-                   stream={activeStream} // Show active stream (screen)
+                   stream={activeScreenShare.isLocal ? activeStream : (activeScreenShare as any).stream} 
                    className="w-full h-full"
                    isMirror={false}
                  />
-                 <div className="absolute top-4 left-4 bg-green-600 px-3 py-1 rounded text-sm font-bold shadow-lg">
-                    {activeScreenShare.isLocal ? "You are sharing your screen" : `${activeScreenShare.name} is sharing`}
-                 </div>
               </div>
-              <div className="h-32 flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-                 {displayParticipants.filter(p => p.id !== activeScreenShare.id).map(p => (
-                   <div key={p.id} className="min-w-[180px] w-[180px] h-full">
-                     <VideoTile 
-                       participant={p} 
-                       stream={p.isLocal ? activeStream : (p as any).stream}
-                       isMirror={p.isLocal && !screenStream} // Mirror only if local and NOT screen sharing
-                       className="w-full h-full text-xs"
-                     />
-                   </div>
-                 ))}
-                 <div className="min-w-[180px] w-[180px] h-full">
-                    <VideoTile 
-                       participant={activeScreenShare}
-                       stream={activeStream}
-                       isMirror={false}
-                       className="w-full h-full text-xs border-2 border-green-500"
-                    />
-                 </div>
-              </div>
+              
+              {/* Filmstrip - Only show if there are participants to show */}
+              {filmstripParticipants.length > 0 && (
+                  <div className="h-24 sm:h-32 flex gap-4 overflow-x-auto pb-2 scrollbar-hide px-4 sm:px-0">
+                    {filmstripParticipants.map(p => (
+                      <div key={p.id} className="min-w-[120px] w-[120px] sm:min-w-[180px] sm:w-[180px] h-full">
+                        <VideoTile 
+                          participant={p} 
+                          stream={p.isLocal ? activeStream : (p as any).stream}
+                          isMirror={p.isLocal && !screenStream}
+                          className="w-full h-full text-xs"
+                        />
+                      </div>
+                    ))}
+                  </div>
+              )}
             </div>
           ) : (
             // Standard Grid Layout
@@ -338,7 +565,7 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
                    <VideoTile
                      participant={p}
                      stream={p.isLocal ? activeStream : (p as any).stream}
-                     isMirror={p.isLocal} // Mirror local cam
+                     isMirror={p.isLocal} 
                      className="w-full h-full max-w-full"
                    />
                 </div>
@@ -360,13 +587,15 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
         isVideoEnabled={isVideoEnabled}
         isScreenSharing={!!screenStream}
         isAiPanelOpen={isAiPanelOpen}
+        isRecording={isRecording}
         backgroundMode={backgroundMode}
         onToggleAudio={toggleAudio}
         onToggleVideo={toggleVideo}
         onToggleScreenShare={toggleScreenShare}
         onToggleAiPanel={() => setIsAiPanelOpen(!isAiPanelOpen)}
+        onToggleRecording={toggleRecording}
         onCycleBackground={cycleBackground}
-        onEndCall={onEndCall}
+        onEndCall={handleEndCallSafe}
       />
     </div>
   );

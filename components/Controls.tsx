@@ -4,7 +4,8 @@ import {
   VideoIcon, VideoOffIcon, 
   ShareScreenIcon, StopShareIcon, 
   SparklesIcon, PhoneOffIcon,
-  BackgroundIcon
+  BackgroundIcon,
+  RecordIcon, StopRecordIcon
 } from './Icons';
 import { BackgroundMode } from '../types';
 
@@ -13,11 +14,13 @@ interface ControlsProps {
   isVideoEnabled: boolean;
   isScreenSharing: boolean;
   isAiPanelOpen: boolean;
+  isRecording: boolean;
   backgroundMode: BackgroundMode;
   onToggleAudio: () => void;
   onToggleVideo: () => void;
   onToggleScreenShare: () => void;
   onToggleAiPanel: () => void;
+  onToggleRecording: () => void;
   onCycleBackground: () => void;
   onEndCall: () => void;
 }
@@ -29,7 +32,8 @@ const ControlButton: React.FC<{
   icon: React.ReactNode;
   label: string;
   danger?: boolean;
-}> = ({ onClick, isActive = true, activeColor = 'bg-gray-700', icon, label, danger }) => (
+  pulse?: boolean;
+}> = ({ onClick, isActive = true, activeColor = 'bg-gray-700', icon, label, danger, pulse }) => (
   <div className="flex flex-col items-center gap-1 group">
     <button
       onClick={onClick}
@@ -39,7 +43,7 @@ const ControlButton: React.FC<{
           : isActive 
             ? 'bg-gray-700 hover:bg-gray-600 text-white'
             : 'bg-red-500/10 text-red-500 border border-red-500/50 hover:bg-red-500/20'
-      }`}
+      } ${pulse ? 'animate-pulse ring-2 ring-red-500 ring-offset-2 ring-offset-gray-900' : ''}`}
     >
       {icon}
     </button>
@@ -54,11 +58,13 @@ const Controls: React.FC<ControlsProps> = ({
   isVideoEnabled,
   isScreenSharing,
   isAiPanelOpen,
+  isRecording,
   backgroundMode,
   onToggleAudio,
   onToggleVideo,
   onToggleScreenShare,
   onToggleAiPanel,
+  onToggleRecording,
   onCycleBackground,
   onEndCall,
 }) => {
@@ -83,6 +89,14 @@ const Controls: React.FC<ControlsProps> = ({
         isActive={!isScreenSharing}
         icon={isScreenSharing ? <StopShareIcon className="w-5 h-5 sm:w-6 sm:h-6 text-green-400" /> : <ShareScreenIcon className="w-5 h-5 sm:w-6 sm:h-6" />}
         label={isScreenSharing ? "Stop Share" : "Share"}
+      />
+      
+      <ControlButton
+        onClick={onToggleRecording}
+        isActive={!isRecording}
+        pulse={isRecording}
+        icon={isRecording ? <StopRecordIcon className="w-5 h-5 sm:w-6 sm:h-6 text-red-400" /> : <RecordIcon className="w-5 h-5 sm:w-6 sm:h-6" />}
+        label={isRecording ? "Stop Rec" : "Record"}
       />
 
       <ControlButton

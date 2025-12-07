@@ -138,7 +138,7 @@ const Lobby: React.FC<LobbyProps> = ({ onJoin }) => {
         {/* Form Area */}
         <div className="flex flex-col justify-center gap-6">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">ZoomClone AI</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">SwiftDigital Meet</h1>
             <p className="text-gray-400">Webinar platform with AI assistance.</p>
           </div>
 

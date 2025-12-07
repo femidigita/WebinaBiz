@@ -15,7 +15,7 @@ class GeminiService {
       this.chatSession = this.ai.chats.create({
         model: 'gemini-2.5-flash',
         config: {
-          systemInstruction: `You are ZoomClone AI, an intelligent webinar assistant. 
+          systemInstruction: `You are SwiftDigital Meet, an intelligent webinar assistant. 
           Your goal is to help users during their meeting. 
           You can suggest meeting agendas, summarize concepts, draft replies, or troubleshoot technical issues.
           Keep responses concise, professional, and helpful.`,
