@@ -80,13 +80,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="w-80 bg-gray-900 border-l border-gray-700 flex flex-col h-full absolute right-0 top-0 z-20 md:relative md:border-l-0 shadow-xl md:shadow-none">
-      <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800">
+    <div className="w-full md:w-80 bg-gray-900 border-l border-gray-700 flex flex-col h-[100dvh] md:h-full absolute right-0 top-0 z-20 md:relative md:border-l-0 shadow-xl md:shadow-none">
+      <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800 shrink-0">
         <h3 className="font-semibold flex items-center gap-2">
           <SparklesIcon className="w-5 h-5 text-purple-400" />
           AI Assistant
         </h3>
-        <button onClick={onClose} className="text-gray-400 hover:text-white md:hidden">
+        <button onClick={onClose} className="text-gray-400 hover:text-white md:hidden p-2">
           ✕
         </button>
       </div>
@@ -121,7 +121,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ isOpen, onClose }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 bg-gray-800 border-t border-gray-700">
+      <div className="p-4 bg-gray-800 border-t border-gray-700 shrink-0 mb-safe">
         <div className="relative">
           <input
             type="text"

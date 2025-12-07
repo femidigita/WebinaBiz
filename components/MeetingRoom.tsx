@@ -489,38 +489,38 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
   });
 
   return (
-    <div className="flex flex-col h-screen bg-gray-950 text-white overflow-hidden">
+    <div className="flex flex-col h-[100dvh] bg-gray-950 text-white overflow-hidden">
       
       {/* Header Info */}
-      <div className="absolute top-4 left-4 z-40 bg-gray-900/80 backdrop-blur border border-gray-700 rounded-lg p-3 shadow-lg flex flex-col gap-1 pointer-events-auto">
+      <div className="absolute top-4 left-4 z-40 bg-gray-900/80 backdrop-blur border border-gray-700 rounded-lg p-3 shadow-lg flex flex-col gap-1 pointer-events-auto max-w-[50%] sm:max-w-none">
           <div className="text-xs text-gray-400 font-semibold">MEETING ID</div>
           <div className="flex items-center gap-2">
-            <span className="text-lg font-mono font-bold text-green-400 tracking-wider select-all">
+            <span className="text-sm sm:text-lg font-mono font-bold text-green-400 tracking-wider select-all truncate">
                 {myPeerId ? myPeerId : <span className="animate-pulse">Connecting...</span>}
             </span>
             {myPeerId && (
-                <button onClick={copyId} className="p-1 hover:bg-gray-700 rounded text-gray-300 transition-colors" title="Copy ID">
+                <button onClick={copyId} className="p-1 hover:bg-gray-700 rounded text-gray-300 transition-colors shrink-0" title="Copy ID">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                 </button>
             )}
           </div>
           {targetMeetingId && (
-              <div className="text-xs text-blue-400 mt-1">Joined Room: {targetMeetingId}</div>
+              <div className="text-xs text-blue-400 mt-1 truncate">Joined: {targetMeetingId}</div>
           )}
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 flex overflow-hidden relative min-h-0">
         
         {/* Video Grid / Stage */}
         <div 
           className={`flex-1 overflow-y-auto transition-all duration-300 ${isAiPanelOpen ? 'mr-0' : ''} flex flex-col 
-          ${activeScreenShare ? 'p-0 sm:p-4' : 'p-4'}`} // Remove padding on mobile during screen share for edge-to-edge
+          ${activeScreenShare ? 'p-0 sm:p-4' : 'p-2 sm:p-4'}`} 
         >
           
           {participants.length === 0 && !targetMeetingId && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center text-gray-500 z-0">
-                  <div className="bg-gray-900/50 p-6 rounded-2xl border border-gray-800">
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center text-gray-500 z-0 w-full px-4">
+                  <div className="bg-gray-900/50 p-6 rounded-2xl border border-gray-800 backdrop-blur-sm">
                     <UsersIcon className="w-12 h-12 mx-auto mb-2 opacity-50"/>
                     <p className="text-lg font-medium mb-2">You are the only one here</p>
                     <p className="text-sm">Share the Meeting ID at the top left to invite others.</p>
@@ -543,9 +543,9 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
               
               {/* Filmstrip - Only show if there are participants to show */}
               {filmstripParticipants.length > 0 && (
-                  <div className="h-24 sm:h-32 flex gap-4 overflow-x-auto pb-2 scrollbar-hide px-4 sm:px-0">
+                  <div className="h-20 sm:h-32 flex gap-2 sm:gap-4 overflow-x-auto pb-2 scrollbar-hide px-2 sm:px-0">
                     {filmstripParticipants.map(p => (
-                      <div key={p.id} className="min-w-[120px] w-[120px] sm:min-w-[180px] sm:w-[180px] h-full">
+                      <div key={p.id} className="min-w-[100px] w-[100px] sm:min-w-[180px] sm:w-[180px] h-full">
                         <VideoTile 
                           participant={p} 
                           stream={p.isLocal ? activeStream : (p as any).stream}
@@ -559,9 +559,9 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
             </div>
           ) : (
             // Standard Grid Layout
-            <div className="h-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-fr content-center z-10">
+            <div className="h-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 auto-rows-fr content-center z-10">
               {displayParticipants.map((p) => (
-                <div key={p.id} className="w-full h-full min-h-[200px] flex justify-center relative">
+                <div key={p.id} className="w-full h-full min-h-[180px] sm:min-h-[200px] flex justify-center relative">
                    <VideoTile
                      participant={p}
                      stream={p.isLocal ? activeStream : (p as any).stream}

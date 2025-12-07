@@ -86,21 +86,21 @@ const Lobby: React.FC<LobbyProps> = ({ onJoin }) => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-950 p-4">
-      <div className="w-full max-w-4xl grid md:grid-cols-2 gap-8 bg-gray-900 p-8 rounded-3xl shadow-2xl border border-gray-800">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-gray-950 p-2 sm:p-4">
+      <div className="w-full max-w-4xl grid md:grid-cols-2 gap-4 md:gap-8 bg-gray-900 p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl border border-gray-800">
         
         {/* Preview Area */}
         <div className="flex flex-col gap-4">
-          <div className="relative aspect-video bg-gray-800 rounded-2xl overflow-hidden shadow-inner border border-gray-700 group">
+          <div className="relative aspect-video bg-gray-800 rounded-xl sm:rounded-2xl overflow-hidden shadow-inner border border-gray-700 group">
             {videoEnabled && stream ? (
                 <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
             ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-gray-500">
                     <div className="text-center">
-                        <div className="w-20 h-20 bg-gray-700 rounded-full mx-auto mb-3 flex items-center justify-center">
-                           <VideoOffIcon className="w-8 h-8 opacity-50"/>
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-700 rounded-full mx-auto mb-3 flex items-center justify-center">
+                           <VideoOffIcon className="w-6 h-6 sm:w-8 sm:h-8 opacity-50"/>
                         </div>
-                        <p>Camera is off</p>
+                        <p className="text-sm sm:text-base">Camera is off</p>
                     </div>
                 </div>
             )}
@@ -132,14 +132,14 @@ const Lobby: React.FC<LobbyProps> = ({ onJoin }) => {
                  {backgroundMode === 'NONE' ? 'No Effect' : backgroundMode === 'BLUR' ? 'Blur' : 'Virtual Image'}
              </div>
           </div>
-          <p className="text-center text-gray-400 text-sm">Preview your video and audio before joining</p>
+          <p className="text-center text-gray-400 text-xs sm:text-sm">Preview your video and audio before joining</p>
         </div>
 
         {/* Form Area */}
-        <div className="flex flex-col justify-center gap-6">
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-2">SwiftDigital Meet</h1>
-            <p className="text-gray-400">Webinar platform with AI assistance.</p>
+        <div className="flex flex-col justify-center gap-4 sm:gap-6">
+          <div className="text-center md:text-left">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">SwiftDigital Meet</h1>
+            <p className="text-sm sm:text-base text-gray-400">Webinar platform with AI assistance.</p>
           </div>
 
           <form onSubmit={handleJoin} className="space-y-4">
@@ -150,7 +150,7 @@ const Lobby: React.FC<LobbyProps> = ({ onJoin }) => {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. John Doe"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all text-sm sm:text-base"
                     required
                 />
             </div>
@@ -162,20 +162,20 @@ const Lobby: React.FC<LobbyProps> = ({ onJoin }) => {
                     value={meetingId}
                     onChange={(e) => setMeetingId(e.target.value)}
                     placeholder="Enter ID to join, or leave empty to start new"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-purple-500 focus:outline-none transition-all text-sm sm:text-base"
                 />
             </div>
             
             <button
                 type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg hover:shadow-blue-500/25"
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg hover:shadow-blue-500/25 text-sm sm:text-base"
             >
                 {meetingId ? "Join Meeting" : "Start New Meeting"}
             </button>
           </form>
 
-          <div className="pt-6 border-t border-gray-800">
-             <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="pt-4 sm:pt-6 border-t border-gray-800">
+             <div className="flex items-center justify-center md:justify-start gap-2 text-sm text-gray-500">
                 <span className="w-2 h-2 rounded-full bg-green-500"></span>
                 <span>System ready</span>
              </div>
