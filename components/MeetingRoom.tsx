@@ -510,7 +510,7 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 relative overflow-hidden flex flex-col">
+      <div className="flex-1 relative overflow-hidden flex flex-row">
         
         {/* Video Grid / Stage */}
         <div 
@@ -559,7 +559,7 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
             </div>
           ) : (
             // Standard Grid Layout
-            <div className="h-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 auto-rows-fr content-center z-10">
+            <div className="min-h-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 auto-rows-fr content-start z-10">
               {displayParticipants.map((p) => (
                 <div key={p.id} className="w-full h-full min-h-[180px] sm:min-h-[200px] flex justify-center relative">
                    <VideoTile
