@@ -489,7 +489,7 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
   });
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-gray-950 text-white overflow-hidden">
+    <div className="relative h-[100dvh] w-full bg-gray-950 text-white overflow-hidden flex flex-col">
       
       {/* Header Info */}
       <div className="absolute top-4 left-4 z-40 bg-gray-900/80 backdrop-blur border border-gray-700 rounded-lg p-3 shadow-lg flex flex-col gap-1 pointer-events-auto max-w-[50%] sm:max-w-none">
@@ -510,12 +510,12 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden relative min-h-0">
+      <div className="flex-1 relative overflow-hidden flex flex-col">
         
         {/* Video Grid / Stage */}
         <div 
           className={`flex-1 overflow-y-auto transition-all duration-300 ${isAiPanelOpen ? 'mr-0' : ''} flex flex-col 
-          ${activeScreenShare ? 'p-0 sm:p-4' : 'p-2 sm:p-4'}`} 
+          ${activeScreenShare ? 'p-0 sm:p-4' : 'p-2 sm:p-4'} pb-32 sm:pb-4`} 
         >
           
           {participants.length === 0 && !targetMeetingId && (
@@ -581,7 +581,7 @@ const MeetingRoom: React.FC<MeetingRoomProps> = ({
 
       </div>
 
-      {/* Bottom Controls */}
+      {/* Bottom Controls - Now absolute positioned inside relative container */}
       <Controls
         isAudioEnabled={isAudioEnabled}
         isVideoEnabled={isVideoEnabled}

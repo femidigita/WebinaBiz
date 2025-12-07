@@ -34,10 +34,10 @@ const ControlButton: React.FC<{
   danger?: boolean;
   pulse?: boolean;
 }> = ({ onClick, isActive = true, activeColor = 'bg-gray-700', icon, label, danger, pulse }) => (
-  <div className="flex flex-col items-center justify-center gap-1 group min-w-[3.5rem] sm:min-w-0">
+  <div className="flex flex-col items-center justify-center gap-1 group min-w-[3rem] sm:min-w-0">
     <button
       onClick={onClick}
-      className={`p-2.5 sm:p-4 rounded-xl transition-all duration-200 shadow-sm ${
+      className={`p-2 sm:p-4 rounded-xl transition-all duration-200 shadow-sm ${
         danger 
           ? 'bg-red-600 hover:bg-red-700 text-white' 
           : isActive 
@@ -46,7 +46,9 @@ const ControlButton: React.FC<{
       } ${pulse ? 'animate-pulse ring-2 ring-red-500 ring-offset-2 ring-offset-gray-900' : ''}`}
       title={label}
     >
-      {icon}
+      {React.cloneElement(icon as React.ReactElement, { 
+        className: "w-5 h-5 sm:w-6 sm:h-6" // Force icon size
+      })}
     </button>
     <span className="hidden sm:block text-[10px] sm:text-xs text-gray-400 group-hover:text-white transition-colors font-medium whitespace-nowrap">
       {label}
@@ -70,26 +72,31 @@ const Controls: React.FC<ControlsProps> = ({
   onEndCall,
 }) => {
   return (
-    <div className="shrink-0 bg-gray-900 border-t border-gray-800 flex items-center justify-between sm:justify-center px-2 sm:px-4 py-2 sm:py-0 h-auto sm:h-24 w-full z-30 overflow-x-auto no-scrollbar pb-safe">
-      <div className="flex items-center gap-2 sm:gap-6 mx-auto">
+    <div className="
+      absolute bottom-12 left-1/2 -translate-x-1/2 w-[95%] max-w-lg z-50
+      bg-gray-900/90 backdrop-blur-md border border-gray-700 rounded-2xl shadow-2xl
+      flex items-center justify-between px-3 py-3 overflow-x-auto no-scrollbar
+      sm:static sm:translate-x-0 sm:w-full sm:max-w-none sm:rounded-none sm:border-x-0 sm:border-b-0 sm:bg-gray-900 sm:h-24 sm:justify-center sm:py-0
+    ">
+      <div className="flex items-center gap-2 sm:gap-6 mx-auto w-full sm:w-auto justify-between sm:justify-center">
         <ControlButton
           onClick={onToggleAudio}
           isActive={isAudioEnabled}
-          icon={isAudioEnabled ? <MicIcon className="w-5 h-5 sm:w-6 sm:h-6" /> : <MicOffIcon className="w-5 h-5 sm:w-6 sm:h-6" />}
+          icon={isAudioEnabled ? <MicIcon /> : <MicOffIcon />}
           label={isAudioEnabled ? "Mute" : "Unmute"}
         />
         
         <ControlButton
           onClick={onToggleVideo}
           isActive={isVideoEnabled}
-          icon={isVideoEnabled ? <VideoIcon className="w-5 h-5 sm:w-6 sm:h-6" /> : <VideoOffIcon className="w-5 h-5 sm:w-6 sm:h-6" />}
+          icon={isVideoEnabled ? <VideoIcon /> : <VideoOffIcon />}
           label={isVideoEnabled ? "Stop Video" : "Start Video"}
         />
 
         <ControlButton
           onClick={onToggleScreenShare}
           isActive={!isScreenSharing}
-          icon={isScreenSharing ? <StopShareIcon className="w-5 h-5 sm:w-6 sm:h-6 text-green-400" /> : <ShareScreenIcon className="w-5 h-5 sm:w-6 sm:h-6" />}
+          icon={isScreenSharing ? <StopShareIcon className="text-green-400" /> : <ShareScreenIcon />}
           label={isScreenSharing ? "Stop Share" : "Share"}
         />
         
@@ -97,21 +104,21 @@ const Controls: React.FC<ControlsProps> = ({
           onClick={onToggleRecording}
           isActive={!isRecording}
           pulse={isRecording}
-          icon={isRecording ? <StopRecordIcon className="w-5 h-5 sm:w-6 sm:h-6 text-red-400" /> : <RecordIcon className="w-5 h-5 sm:w-6 sm:h-6" />}
+          icon={isRecording ? <StopRecordIcon className="text-red-400" /> : <RecordIcon />}
           label={isRecording ? "Stop Rec" : "Record"}
         />
 
         <ControlButton
           onClick={onCycleBackground}
           isActive={backgroundMode !== 'NONE'}
-          icon={<BackgroundIcon className={`w-5 h-5 sm:w-6 sm:h-6 ${backgroundMode !== 'NONE' ? 'text-blue-400' : ''}`} />}
+          icon={<BackgroundIcon className={backgroundMode !== 'NONE' ? 'text-blue-400' : ''} />}
           label={backgroundMode === 'NONE' ? "Background" : backgroundMode === 'BLUR' ? "Blur On" : "Image On"}
         />
 
         <ControlButton
           onClick={onToggleAiPanel}
           isActive={isAiPanelOpen}
-          icon={<SparklesIcon className={`w-5 h-5 sm:w-6 sm:h-6 ${isAiPanelOpen ? 'text-purple-400' : ''}`} />}
+          icon={<SparklesIcon className={isAiPanelOpen ? 'text-purple-400' : ''} />}
           label="AI Companion"
         />
 
@@ -120,7 +127,7 @@ const Controls: React.FC<ControlsProps> = ({
         <ControlButton
           onClick={onEndCall}
           danger
-          icon={<PhoneOffIcon className="w-5 h-5 sm:w-6 sm:h-6" />}
+          icon={<PhoneOffIcon />}
           label="End"
         />
       </div>
